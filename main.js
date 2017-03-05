@@ -4,8 +4,12 @@ var nodemailer = require("nodemailer");
 var config = require('./config');
 
 var app = express()
+app.get("/", function (req, res) {
+    res.send("Event notification server is open!")
+})
+
 var web3 = new Web3();
-web3.setProvider(new web3.providers.HttpProvider(config.rpc.host));
+web3.setProvider(new web3.providers.HttpProvider(config.rpcHost));
 var transporter = nodemailer.createTransport({
         service: config.mail.service,
         auth: {
@@ -13,87 +17,40 @@ var transporter = nodemailer.createTransport({
             pass: config.mail.pass
         }
     });
+var MyContract = web3.eth.contract(config.contract.abi);
+var myContractInstance = MyContract.at(config.contract.address);
+var availableEventNames = config.contract.abi.filter(function (r) {return r.type = "event"}).map(function(r) {return r.name;});
+var eventCallback = function(error, result) {
+    console.log("Event: " + result.event + "\nData: " + JSON.stringify(result.args))
+    var mailOptions = {
+        from: config.mail.from,
+        to: config.mail.to,
+        subject: "New Event: " + result.event,
+        text: "Event: " + result.event + "\nData: " + result.event + JSON.stringify(result.args)
+    };
+    transporter.sendMail(mailOptions, function(error, info){
+        if(error){
+            console.log(error);
+        }else{
+            console.log("Message sent: " + info.response);
+        }
+    });
+}
+var eventFilter = [{some: 'args'}, {fromBlock: config.startingBlock}, eventCallback]
 
-app.get("/", function (req, res) {
-  res.send("Event notification server is open!")
-})
-
-var logRentedTopic = "LogRented(bytes32,address,uint256,uint256)"
-
-
-
-var logReturnedTopic = "LogReturned(bytes32,uint256,uint256,uint256,uint8)"
-
-
-
-app.listen(3000, function () {
-
+var server = app.listen(3002, function () {
     if (web3.isConnected()){
-
-        console.log("Listening for contract events...")
-
-        var certainBlock = 3273431;
-
-        var filterLogRented = web3.eth.filter({fromBlock:certainBlock, address: config.contract.address, "topics":[web3.sha3(logRentedTopic)]});
-        filterLogRented.watch(function(error, result) {
-            var logRentedData = "Event: LogRented" 
-                + "\nPole ID: " + result.topics[1]
-                + "\nController: " + "0x" + result.data.substring(2,66).replace(/^[0]+/g,"")
-                + "\nWatt power: "  + parseInt(result.data.substring(66,66+64),16)
-                + "\nHours to rent: " + parseInt(result.data.substring(66+64,66+64*2),16)
-            // console.log(result);
-            console.log("\nData: ");
-            console.log(logRentedData);
-            console.log("\n\n\n");
-
-            var mailOptions = {
-                from: config.mail.from, 
-                to: config.mail.to, 
-                subject: "New Event: LogRented",
-                text: logRentedData
-            };
-
-            transporter.sendMail(mailOptions, function(error, info){
-                if(error){
-                    console.log(error);
-                }else{
-                    console.log("Message sent: " + info.response);
-                }
-                });
-        })
-
-        var filterLogReturned = web3.eth.filter({fromBlock:certainBlock, address: config.contract.address, "topics":[web3.sha3(logReturnedTopic)]});
-        filterLogReturned.watch(function(error, result) {
-            var logReturnedData = "Event: LogReturned" 
-                + "\nPole ID: " + result.topics[1]
-                + "\nCharge amount: " +  parseInt(result.data.substring(2,66),16)
-                + "\nElapsed seconds: "  + parseInt(result.data.substring(66,66+64),16)
-                + "\nWatt: " + parseInt(result.data.substring(66+64,66+64*2),16)
-                + "\nContract type: " + parseInt(result.data.substring(66+64*2,66+64*3),16)
-            // console.log(result);
-            console.log("\nData: ");
-            console.log(logReturnedData);
-            console.log("\n\n\n");
-
-            var mailOptions = {
-                from: config.mail.from, 
-                to: config.mail.to, 
-                subject: "New Event: LogReturned",
-                text: logReturnedData
-            };
-
-            transporter.sendMail(mailOptions, function(error, info){
-                if(error){
-                    console.log(error);
-                }else{
-                    console.log("Message sent: " + info.response);
-                }
-                });
-        })
-
+        for (var i = 0, len = config.events.length; i < len; i++) {
+            if(availableEventNames.includes(config.events[i])) {
+                console.log("Watching event: " + config.events[i])
+                eval("myContractInstance." + config.events[i]).apply(this, eventFilter);
+            } else {
+                console.log("Event: " + config.events[i] + " is not included in contract's events")
+            }
+        }
     } else {
-        console.log("Cannot connect to RPC")
+        console.log("Cannot connect to RPC, exiting")
+        server.close();
     }
-
 })
 
