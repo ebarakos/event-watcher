@@ -1,7 +1,7 @@
 var express = require("express")
 var Web3 = require("web3");
 var nodemailer = require("nodemailer");
-var config = require('./config');
+var config = require('./config-alt');
 
 var app = express()
 app.get("/", function (req, res) {
@@ -17,16 +17,19 @@ var transporter = nodemailer.createTransport({
             pass: config.mail.pass
         }
     });
+
 var MyContract = web3.eth.contract(config.contract.abi);
 var myContractInstance = MyContract.at(config.contract.address);
 var availableEventNames = config.contract.abi.filter(function (r) {return r.type = "event"}).map(function(r) {return r.name;});
+
 var eventCallback = function(error, result) {
-    console.log("Event: " + result.event + "\nData: " + JSON.stringify(result.args))
+    console.log(result)
+    var data = JSON.stringify(result.args, null, "\n").slice(1, -1)
     var mailOptions = {
         from: config.mail.from,
         to: config.mail.to,
-        subject: "New Event: " + result.event,
-        text: "Event: " + result.event + "\nData: " + result.event + JSON.stringify(result.args)
+        subject: "Event: " + result.event,
+        text: data
     };
     transporter.sendMail(mailOptions, function(error, info){
         if(error){
@@ -36,6 +39,7 @@ var eventCallback = function(error, result) {
         }
     });
 }
+
 var eventFilter = [{some: 'args'}, {fromBlock: config.startingBlock}, eventCallback]
 
 var server = app.listen(3002, function () {
@@ -49,7 +53,7 @@ var server = app.listen(3002, function () {
             }
         }
     } else {
-        console.log("Cannot connect to RPC, exiting")
+        console.log("Cannot connect to RPC")
         server.close();
     }
 })

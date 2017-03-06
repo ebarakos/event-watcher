@@ -3,7 +3,6 @@ var config = {};
 config.mail = {};
 config.contract = {};
 config.startingBlock = "latest"
-config.startingBlock = 3297021
 config.events = ["LogReturned", "LogRented"]
 config.mail.service = "Yandex"
 config.mail.user = "test.slock.it"
