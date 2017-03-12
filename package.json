@@ -1,5 +1,5 @@
 {
-  "name": "slock-it-task",
+  "name": "event-watcher",
   "version": "1.0.0",
   "dependencies": {
     "express": "^4.15.1",
